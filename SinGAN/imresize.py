@@ -10,56 +10,62 @@ import torch
 
 def denorm(x):
     out = (x + 1) / 2
-    return out.clamp(0, 1)
+    return out.clamp(0, 1)#restrict it in [0, 1]
 
 def norm(x):
     out = (x - 0.5) * 2
     return out.clamp(-1, 1)
 
-def move_to_gpu(t):
+def move_to_gpu(t):# efficiency consideration
     if (torch.cuda.is_available()):
         t = t.to(torch.device('cuda'))
     return t
 
 def np2torch(x,opt):
+    #if input channel = 3
     if opt.nc_im == 3:
         x = x[:,:,:,None]
-        x = x.transpose((3, 2, 0, 1))/255
+        x = x.transpose((3, 2, 0, 1))/255 #(None, channels, H, W), change to 0-1,
+        #need to be further changed into tf ver
     else:
+        #dont really get here, I think the input must be in 3 channel for skimage.color.rbg2gray?
         x = color.rgb2gray(x)
         x = x[:,:,None,None]
         x = x.transpose(3, 2, 0, 1)
+    #generate the tensor
     x = torch.from_numpy(x)
     if not (opt.not_cuda):
         x = move_to_gpu(x)
     x = x.type(torch.cuda.FloatTensor) if not(opt.not_cuda) else x.type(torch.FloatTensor)
-    #x = x.type(torch.cuda.FloatTensor)
+    #norm the float sentor
     x = norm(x)
     return x
 
 def torch2uint8(x):
+    #get the first one
     x = x[0,:,:,:]
+    #to (W,H,Channel)
     x = x.permute((1,2,0))
+    #get back to 255 form
     x = 255*denorm(x)
+    #generate a uint8 numpy
     x = x.cpu().numpy()
     x = x.astype(np.uint8)
     return x
 
 
 def imresize(im,scale,opt):
-    #s = im.shape
+    #change image from tensor to numpy, resize it with scale, then get back to tensor
     im = torch2uint8(im)
     im = imresize_in(im, scale_factor=scale)
     im = np2torch(im,opt)
-    #im = im[:, :, 0:int(scale * s[2]), 0:int(scale * s[3])]
     return im
 
 def imresize_to_shape(im,output_shape,opt):
-    #s = im.shape
+    #same, just resize to the specific shape
     im = torch2uint8(im)
     im = imresize_in(im, output_shape=output_shape)
     im = np2torch(im,opt)
-    #im = im[:, :, 0:int(scale * s[2]), 0:int(scale * s[3])]
     return im
 
 
@@ -258,7 +264,6 @@ def kernel_shift(kernel, sf):
 
 # These next functions are all interpolation methods. x is the distance from the left pixel center
 
-
 def cubic(x):
     absx = np.abs(x)
     absx2 = absx ** 2
@@ -281,7 +286,6 @@ def lanczos3(x):
     return (((np.sin(pi*x) * np.sin(pi*x/3) + np.finfo(np.float32).eps) /
             ((pi**2 * x**2 / 3) + np.finfo(np.float32).eps))
             * (abs(x) < 3))
-
 
 def linear(x):
     return (x + 1) * ((-1 <= x) & (x < 0)) + (1 - x) * ((0 <= x) & (x <= 1))

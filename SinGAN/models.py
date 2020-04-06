@@ -3,7 +3,10 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 
-
+#1. already has a TF ver, weights_init is replaced by a specifically defined initializer
+#2. in TF ver, the layer of discrimator may not need to be the same as generator, in order to keep the efficiency
+#3. Thinking about for generator use some conv2Dtranspose-alike stuff, is that necessary?
+#--YH
 class ConvBlock(nn.Sequential):
     def __init__(self, in_channel, out_channel, ker_size, padd, stride):
         super(ConvBlock,self).__init__()
@@ -18,7 +21,7 @@ def weights_init(m):
     elif classname.find('Norm') != -1:
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
-   
+
 class WDiscriminator(nn.Module):
     def __init__(self, opt):
         super(WDiscriminator, self).__init__()
@@ -37,7 +40,6 @@ class WDiscriminator(nn.Module):
         x = self.body(x)
         x = self.tail(x)
         return x
-
 
 class GeneratorConcatSkip2CleanAdd(nn.Module):
     def __init__(self, opt):
