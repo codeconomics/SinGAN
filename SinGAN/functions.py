@@ -194,7 +194,8 @@ def save_networks(netG,netD,z,opt):
 
 def adjust_scales2image(real_,opt):
     #opt.num_scales = int((math.log(math.pow(opt.min_size / (real_.shape[2]), 1), opt.scale_factor_init))) + 1
-    opt.num_scales = math.ceil((math.log(math.pow(opt.min_size / (min(real_.shape[2], real_.shape[3])), 1), opt.scale_factor_init))) + 1
+    opt.num_scales = math.ceil((math.log(math.pow(opt.min_size / (min(real_.shape[2], real_.shape[3])), 1), opt.scale_factor_init))) + 1 * opt.scale_plus1 + 1 * opt.additional_scale # newly added here
+    
     scale2stop = math.ceil(math.log(min([opt.max_size, max([real_.shape[2], real_.shape[3]])]) / max([real_.shape[2], real_.shape[3]]),opt.scale_factor_init))
     opt.stop_scale = opt.num_scales - scale2stop
     opt.scale1 = min(opt.max_size / max([real_.shape[2], real_.shape[3]]),1)  # min(250/max([real_.shape[0],real_.shape[1]]),1)
@@ -202,19 +203,6 @@ def adjust_scales2image(real_,opt):
     #opt.scale_factor = math.pow(opt.min_size / (real.shape[2]), 1 / (opt.stop_scale))
     opt.scale_factor = math.pow(opt.min_size/(min(real.shape[2],real.shape[3])),1/(opt.stop_scale))
     scale2stop = math.ceil(math.log(min([opt.max_size, max([real_.shape[2], real_.shape[3]])]) / max([real_.shape[2], real_.shape[3]]),opt.scale_factor_init))
-    opt.stop_scale = opt.num_scales - scale2stop
-    return real
-
-def adjust_scales2image_SR(real_,opt):
-    opt.min_size = 18
-    opt.num_scales = int((math.log(opt.min_size / min(real_.shape[2], real_.shape[3]), opt.scale_factor_init))) + 1
-    scale2stop = int(math.log(min(opt.max_size , max(real_.shape[2], real_.shape[3])) / max(real_.shape[0], real_.shape[3]), opt.scale_factor_init))
-    opt.stop_scale = opt.num_scales - scale2stop
-    opt.scale1 = min(opt.max_size / max([real_.shape[2], real_.shape[3]]), 1)  # min(250/max([real_.shape[0],real_.shape[1]]),1)
-    real = imresize(real_, opt.scale1, opt)
-    #opt.scale_factor = math.pow(opt.min_size / (real.shape[2]), 1 / (opt.stop_scale))
-    opt.scale_factor = math.pow(opt.min_size/(min(real.shape[2],real.shape[3])),1/(opt.stop_scale))
-    scale2stop = int(math.log(min(opt.max_size, max(real_.shape[2], real_.shape[3])) / max(real_.shape[0], real_.shape[3]), opt.scale_factor_init))
     opt.stop_scale = opt.num_scales - scale2stop
     return real
 
@@ -229,19 +217,19 @@ def creat_reals_pyramid(real,reals,opt):
 
 def load_trained_pyramid(opt, mode_='train'):
     #dir = 'TrainedModels/%s/scale_factor=%f' % (opt.input_name[:-4], opt.scale_factor_init)
-    mode = opt.mode
-    opt.mode = 'train'
-    if (mode == 'animation_train') | (mode == 'SR_train') | (mode == 'paint_train'):
-        opt.mode = mode
+    #mode = opt.mode # for a simpler dir2save we dont need to change that
+    #opt.mode = 'train'
+    #if (mode == 'animation_train') | (mode == 'SR_train') | (mode == 'paint_train'):
+    #    opt.mode = mode
     dir = generate_dir2save(opt)
     if(os.path.exists(dir)):
-        Gs = torch.load('%s/Gs.pth' % dir)
+        Gs = torch.load(f'%s/Gs.pth' % dir)
         Zs = torch.load('%s/Zs.pth' % dir)
         reals = torch.load('%s/reals.pth' % dir)
         NoiseAmp = torch.load('%s/NoiseAmp.pth' % dir)
     else:
         print('no appropriate trained model is exist, please train first')
-    opt.mode = mode
+    #opt.mode = mode
     return Gs,Zs,reals,NoiseAmp
 
 def generate_in2coarsest(reals,scale_v,scale_h,opt):
@@ -254,29 +242,7 @@ def generate_in2coarsest(reals,scale_v,scale_h,opt):
     return in_s
 
 def generate_dir2save(opt):
-    dir2save = None
-    if (opt.mode == 'train') | (opt.mode == 'SR_train'):
-        dir2save = 'TrainedModels/%s/scale_factor=%f,alpha=%d' % (opt.input_name[:-4], opt.scale_factor_init,opt.alpha)
-    elif (opt.mode == 'animation_train') :
-        dir2save = 'TrainedModels/%s/scale_factor=%f_noise_padding' % (opt.input_name[:-4], opt.scale_factor_init)
-    elif (opt.mode == 'paint_train') :
-        dir2save = 'TrainedModels/%s/scale_factor=%f_paint/start_scale=%d' % (opt.input_name[:-4], opt.scale_factor_init,opt.paint_start_scale)
-    elif opt.mode == 'random_samples':
-        dir2save = '%s/RandomSamples/%s/gen_start_scale=%d' % (opt.out,opt.input_name[:-4], opt.gen_start_scale)
-    elif opt.mode == 'random_samples_arbitrary_sizes':
-        dir2save = '%s/RandomSamples_ArbitrerySizes/%s/scale_v=%f_scale_h=%f' % (opt.out,opt.input_name[:-4], opt.scale_v, opt.scale_h)
-    elif opt.mode == 'animation':
-        dir2save = '%s/Animation/%s' % (opt.out, opt.input_name[:-4])
-    elif opt.mode == 'SR':
-        dir2save = '%s/SR/%s' % (opt.out, opt.sr_factor)
-    elif opt.mode == 'harmonization':
-        dir2save = '%s/Harmonization/%s/%s_out' % (opt.out, opt.input_name[:-4],opt.ref_name[:-4])
-    elif opt.mode == 'editing':
-        dir2save = '%s/Editing/%s/%s_out' % (opt.out, opt.input_name[:-4],opt.ref_name[:-4])
-    elif opt.mode == 'paint2image':
-        dir2save = '%s/Paint2image/%s/%s_out' % (opt.out, opt.input_name[:-4],opt.ref_name[:-4])
-        if opt.quantization_flag:
-            dir2save = '%s_quantized' % dir2save
+    dir2save = f'{opt.out}/{opt.input_name}/layer={opt.num_layer}, additional_scale={bool(opt.additional_scale)}, iteration={opt.niter}, scale_factor={opt.scale_factor_init}, alpha={opt.alpha}'
     return dir2save
 
 def post_config(opt):
@@ -291,13 +257,13 @@ def post_config(opt):
     if opt.mode == 'SR':
         opt.alpha = 100
 
-    if opt.manualSeed is None:
-        opt.manualSeed = random.randint(1, 10000)
-    print("Random Seed: ", opt.manualSeed)
+    #if opt.manualSeed is None: seed will be spcified
+    #    opt.manualSeed = random.randint(1, 10000)
+    #print("Random Seed: ", opt.manualSeed)# stop the output
     random.seed(opt.manualSeed)
     torch.manual_seed(opt.manualSeed)
-    if torch.cuda.is_available() and opt.not_cuda:
-        print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+    #if torch.cuda.is_available() and opt.not_cuda:
+    #    print("WARNING: You have a CUDA device, so you should probably run with --cuda")
     return opt
 
 def calc_init_scale(opt):
@@ -305,35 +271,6 @@ def calc_init_scale(opt):
     iter_num = round(math.log(1 / opt.sr_factor, in_scale))
     in_scale = pow(opt.sr_factor, 1 / iter_num)
     return in_scale,iter_num
-
-def quant(prev,device):
-    arr = prev.reshape((-1, 3)).cpu()
-    kmeans = KMeans(n_clusters=5, random_state=0).fit(arr)
-    labels = kmeans.labels_
-    centers = kmeans.cluster_centers_
-    x = centers[labels]
-    x = torch.from_numpy(x)
-    x = move_to_gpu(x)
-    x = x.type(torch.cuda.FloatTensor) if () else x.type(torch.FloatTensor)
-    #x = x.type(torch.FloatTensor.to(device))
-    x = x.view(prev.shape)
-    return x,centers
-
-def quant2centers(paint, centers):
-    arr = paint.reshape((-1, 3)).cpu()
-    kmeans = KMeans(n_clusters=5, init=centers, n_init=1).fit(arr)
-    labels = kmeans.labels_
-    #centers = kmeans.cluster_centers_
-    x = centers[labels]
-    x = torch.from_numpy(x)
-    x = move_to_gpu(x)
-    x = x.type(torch.cuda.FloatTensor) if torch.cuda.is_available() else x.type(torch.FloatTensor)
-    #x = x.type(torch.cuda.FloatTensor)
-    x = x.view(paint.shape)
-    return x
-
-    return paint
-
 
 def dilate_mask(mask,opt):
     if opt.mode == "harmonization":
@@ -352,5 +289,3 @@ def dilate_mask(mask,opt):
     plt.imsave('%s/%s_mask_dilated.png' % (opt.ref_dir, opt.ref_name[:-4]), convert_image_np(mask), vmin=0,vmax=1)
     mask = (mask-mask.min())/(mask.max()-mask.min())
     return mask
-
-

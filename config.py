@@ -42,3 +42,24 @@ def get_arguments():
 
     
     return parser
+
+def post_config(opt):
+    # init fixed parameters
+    opt.device = torch.device("cpu" if opt.not_cuda else "cuda:0")
+    opt.niter_init = opt.niter
+    opt.noise_amp_init = opt.noise_amp
+    opt.nfc_init = opt.nfc
+    opt.min_nfc_init = opt.min_nfc
+    opt.scale_factor_init = opt.scale_factor
+    opt.out_ = 'TrainedModels/%s/scale_factor=%f/' % (opt.input_name[:-4], opt.scale_factor)
+    if opt.mode == 'SR':
+        opt.alpha = 100
+
+    if opt.manualSeed is None:
+        opt.manualSeed = random.randint(1, 10000)
+    print("Random Seed: ", opt.manualSeed)
+    random.seed(opt.manualSeed)
+    torch.manual_seed(opt.manualSeed)
+    if torch.cuda.is_available() and opt.not_cuda:
+        print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+    return opt
